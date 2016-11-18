@@ -7,9 +7,6 @@
   (:require [clojure.core.async :refer [>! chan go]]
             [hyacinth-macaw.uds :as uds]))
 
-(def ^:dynamic *consumer-key* "yMTDzst7q7mBA01TvjXlrTO9f")
-(def ^:dynamic *consumer-secret* "W7M80vxoDEKIHlqLcNz7r6GjGzR6QKlLMCsby9AML2OQej2nQY")
-
 (defn- get-oauth-access-token [tw req pin]
   (if (empty? pin)
     (.getOAuthAccessToken tw req)
@@ -20,8 +17,6 @@
   (let [twitter (-> (TwitterFactory.) .getInstance)
         stream (-> (TwitterStreamFactory.) .getInstance)
         desktop (Desktop/getDesktop)
-        _ (.setOAuthConsumer twitter *consumer-key* *consumer-secret*)
-        _ (.setOAuthConsumer stream *consumer-key* *consumer-secret*)
         request-token (.getOAuthRequestToken twitter)]
     (->> (.getAuthorizationURL request-token) URI. (.browse desktop))
     (let [line (read-line)]
