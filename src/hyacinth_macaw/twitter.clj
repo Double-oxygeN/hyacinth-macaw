@@ -5,7 +5,10 @@
            (twitter4j.auth AccessToken RequestToken)
            (twitter4j.conf ConfigurationBuilder))
   (:require [clojure.core.async :refer [>! chan go]]
+            [clojure.data.json :as json]
             [hyacinth-macaw.uds :as uds]))
+
+(def twitter-blue [29 161 242])
 
 (defn- get-oauth-access-token [tw req pin]
   (if (empty? pin)
@@ -18,12 +21,15 @@
         stream (-> (TwitterStreamFactory.) .getInstance)
         desktop (Desktop/getDesktop)
         request-token (.getOAuthRequestToken twitter)]
+    (print "Please login to Twitter and get the PIN code.\nPIN > ")
+    (flush)
     (->> (.getAuthorizationURL request-token) URI. (.browse desktop))
     (let [line (read-line)]
       (try
         (doto (get-oauth-access-token twitter request-token line)
           (#(.setOAuthAccessToken twitter %))
           (#(.setOAuthAccessToken stream %)))
+        (println "Succeeded in connection to your account.")
         {:twitter twitter :stream stream}
         (catch TwitterException e
           (println "Unable to get the access token."))))))
@@ -37,7 +43,7 @@
         (println (-> status .getText))
         (println \< (-> status .getId) \>)
         (println)
-        (go (>! sender (.getText status))))
+        (go (>! sender (json/write-str {:color {:body [240 240 240] :frame twitter-blue} :width 240 :height 180 :body (.getText status)}))))
       (onDeletionNotice [this statusDeletionNotice] nil)
       (onTrackLimitationNotice [this numberOfLimitedStatuses] nil)
       (onScrubGeo [this userId upToStatusId] nil)
@@ -45,7 +51,8 @@
       (onFriendList [this friendIds] nil)
       (onFavorite [this source target favoritedStatus] nil
         (println "[Fav] " (.getScreenName source) \_ (.getScreenName target) \_ (.getText favoritedStatus))
-        (println))
+        (println)
+        (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [238 164 19]} :width 160 :height 120 :body (.getText favoritedStatus)}))))
       (onUnfavorite [this source rarget favoritedStatus] nil)
       (onFavoritedRetweet [this source target favoritedRetweet] nil)
       (onRetweetedRetweet [this source target retweetedStatus] nil)

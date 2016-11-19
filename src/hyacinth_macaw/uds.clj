@@ -2,7 +2,6 @@
   (:import (org.newsclub.net.unix AFUNIXSocket AFUNIXSocketAddress)
            (java.io PrintWriter))
   (:require [clojure.java.io :as io]
-            [clojure.data.json :as json]
             [clojure.core.async :refer [<! go-loop]]))
 
 (def budgie-socket-file "/var/tmp/budgerigar.socket")
@@ -14,6 +13,5 @@
 (defn sender-channel [c]
   (let [out (-> socket .getOutputStream (PrintWriter. true))]
     (go-loop [data (<! c)]
-      (->> (json/write-str {:color [29 161 242] :body data})
-        (.println out))
+      (.println out data)
       (recur (<! c)))))
