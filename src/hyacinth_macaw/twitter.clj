@@ -34,25 +34,33 @@
         (catch TwitterException e
           (println "Unable to get the access token."))))))
 
+(defn- twitter-body [status from to mode]
+  (case mode
+    :tweet (str \@ (-> from .getScreenName) \[ (-> from .getName) \] \newline
+                (-> status .getText) \newline
+                \< (-> status .getId) \>)
+    :fav (str (-> from .getScreenName) \→ (-> to .getScreenName) \newline
+              (-> status .getText))
+    ""))
+
 (def listener
   (let [sender (chan)]
     (uds/sender-channel sender)
     (reify UserStreamListener
       (onStatus [this status]
-        (println (-> status .getUser .getScreenName))
-        (println (-> status .getText))
         (println \< (-> status .getId) \>)
-        (println)
-        (go (>! sender (json/write-str {:color {:body [240 240 240] :frame twitter-blue} :width 240 :height 180 :body (.getText status)}))))
+        (go (>! sender (json/write-str {:color {:body [240 240 240] :frame twitter-blue}
+                                        :fade 1 :width 240 :height 180
+                                        :body (twitter-body status (.getUser status) nil :tweet)}))))
       (onDeletionNotice [this statusDeletionNotice] nil)
       (onTrackLimitationNotice [this numberOfLimitedStatuses] nil)
       (onScrubGeo [this userId upToStatusId] nil)
       (onStallWarning [this warning] this)
       (onFriendList [this friendIds] nil)
       (onFavorite [this source target favoritedStatus] nil
-        (println "[Fav] " (.getScreenName source) \_ (.getScreenName target) \_ (.getText favoritedStatus))
-        (println)
-        (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [238 164 19]} :width 160 :height 120 :body (.getText favoritedStatus)}))))
+        (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [238 164 19]}
+                                        :fade 1.2 :width 160 :height 120
+                                        :body (twitter-body favoritedStatus source target :fav)}))))
       (onUnfavorite [this source rarget favoritedStatus] nil)
       (onFavoritedRetweet [this source target favoritedRetweet] nil)
       (onRetweetedRetweet [this source target retweetedStatus] nil)
