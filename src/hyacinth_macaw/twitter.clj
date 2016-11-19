@@ -6,6 +6,7 @@
            (twitter4j.conf ConfigurationBuilder))
   (:require [clojure.core.async :refer [>! chan go]]
             [clojure.data.json :as json]
+            [clojure.string :as str]
             [hyacinth-macaw.uds :as uds]))
 
 (def twitter-blue [29 161 242])
@@ -50,7 +51,7 @@
       (onStatus [this status]
         (println \< (-> status .getId) \>)
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame twitter-blue}
-                                        :fade 1 :width 240 :height 180
+                                        :fade 1 :width 240 :height 180 :font-size 12
                                         :body (twitter-body status (.getUser status) nil :tweet)}))))
       (onDeletionNotice [this statusDeletionNotice] nil)
       (onTrackLimitationNotice [this numberOfLimitedStatuses] nil)
@@ -59,7 +60,7 @@
       (onFriendList [this friendIds] nil)
       (onFavorite [this source target favoritedStatus] nil
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [238 164 19]}
-                                        :fade 1.2 :width 160 :height 120
+                                        :fade 1.2 :width 160 :height 120 :font-size 10
                                         :body (twitter-body favoritedStatus source target :fav)}))))
       (onUnfavorite [this source rarget favoritedStatus] nil)
       (onFavoritedRetweet [this source target favoritedRetweet] nil)
@@ -81,3 +82,23 @@
 
 (defn add-listener [t]
   (.addListener t listener))
+
+(defn substr [s start end]
+  (if (integer? start)
+    (if (integer? end)
+      (subs s start end)
+      (subs s start))))
+
+(defn command-twitter-action [t]
+  (loop [line (-> (read-line) (str/split #";\s*"))]
+    (let [commands (-> (first line) (str/split #"\s"))]
+      (case (first commands)
+        "tw" (.updateStatus t (str/join \space (rest commands)))
+        "fav" (.createFavorite t (Long/parseLong (second commands)))
+        "rt" (.retweetStatus t (Long/parseLong (second commands)))
+        "favrt" (let [id (Long/parseLong (second commands))] (.createFavorite t id) (.retweetStatus t id))
+        "show" (-> (.showStatus t (Long/parseLong (second commands))) .getText (#(println "[show]" %)))
+        nil)
+      (if (empty? (rest line))
+        (recur (-> (read-line) (str/split #";\s*")))
+        (recur (rest line))))))

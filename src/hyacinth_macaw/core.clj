@@ -5,4 +5,5 @@
 (defn -main
   [& args]
   (let [client (tw/make-twitter)]
-    (doto (:stream client) tw/add-listener .user)))
+    (doto (:stream client) tw/add-listener .user)
+    (tw/command-twitter-action (:twitter client))))
