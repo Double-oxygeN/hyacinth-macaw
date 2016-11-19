@@ -1,9 +1,9 @@
 (ns hyacinth-macaw.twitter
   (:import (java.awt Desktop)
            (java.net URI)
-           (twitter4j Twitter TwitterFactory TwitterStreamFactory Status TwitterException UserStreamListener)
-           (twitter4j.auth AccessToken RequestToken)
-           (twitter4j.conf ConfigurationBuilder))
+           (java.util Locale)
+           (java.text SimpleDateFormat)
+           (twitter4j TwitterFactory TwitterStreamFactory TwitterException UserStreamListener))
   (:require [clojure.core.async :refer [>! chan go]]
             [clojure.data.json :as json]
             [clojure.string :as str]
@@ -36,13 +36,16 @@
           (println "Unable to get the access token."))))))
 
 (defn- twitter-body [status from to mode]
-  (case mode
-    :tweet (str \@ (-> from .getScreenName) \[ (-> from .getName) \] \newline
+  (let [format (SimpleDateFormat. "d/MMM/YYYY HH:mm:ss Z" Locale/JAPAN)]
+    (case mode
+      :tweet (str \@ (-> from .getScreenName) \[ (-> from .getName) \] \newline
+                  (-> status .getText) \newline
+                  \< (-> status .getId) \> \newline
+                  (.format format (-> status .getCreatedAt)))
+      :fav (str (-> from .getScreenName) \→ (-> to .getScreenName) \newline
                 (-> status .getText) \newline
-                \< (-> status .getId) \>)
-    :fav (str (-> from .getScreenName) \→ (-> to .getScreenName) \newline
-              (-> status .getText))
-    ""))
+                (.format format (-> status .getCreatedAt)))
+      "")))
 
 (def listener
   (let [sender (chan)]
@@ -51,7 +54,7 @@
       (onStatus [this status]
         (println \< (-> status .getId) \>)
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame twitter-blue}
-                                        :fade 1 :width 240 :height 180 :font-size 12
+                                        :fade 255/900 :width 280 :height 210 :font-size 12
                                         :body (twitter-body status (.getUser status) nil :tweet)}))))
       (onDeletionNotice [this statusDeletionNotice] nil)
       (onTrackLimitationNotice [this numberOfLimitedStatuses] nil)
@@ -60,7 +63,7 @@
       (onFriendList [this friendIds] nil)
       (onFavorite [this source target favoritedStatus] nil
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [238 164 19]}
-                                        :fade 1.2 :width 160 :height 120 :font-size 10
+                                        :fade 255/600 :width 200 :height 150 :font-size 9
                                         :body (twitter-body favoritedStatus source target :fav)}))))
       (onUnfavorite [this source rarget favoritedStatus] nil)
       (onFavoritedRetweet [this source target favoritedRetweet] nil)
@@ -93,7 +96,7 @@
   (loop [line (-> (read-line) (str/split #";\s*"))]
     (let [commands (-> (first line) (str/split #"\s"))]
       (case (first commands)
-        "tw" (.updateStatus t (str/join \space (rest commands)))
+        "tw" (.updateStatus t (->> (rest commands) (str/join \space)))
         "fav" (.createFavorite t (Long/parseLong (second commands)))
         "rt" (.retweetStatus t (Long/parseLong (second commands)))
         "favrt" (let [id (Long/parseLong (second commands))] (.createFavorite t id) (.retweetStatus t id))
