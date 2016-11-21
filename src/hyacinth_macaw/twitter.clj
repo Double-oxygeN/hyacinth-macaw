@@ -3,7 +3,7 @@
            (java.net URI)
            (java.util Locale)
            (java.text SimpleDateFormat)
-           (twitter4j TwitterFactory TwitterStreamFactory TwitterException UserStreamListener))
+           (twitter4j Query StatusUpdate TwitterFactory TwitterStreamFactory TwitterException UserStreamListener))
   (:require [clojure.core.async :refer [>! chan go]]
             [clojure.data.json :as json]
             [clojure.string :as str]
@@ -62,6 +62,7 @@
       (onStallWarning [this warning] this)
       (onFriendList [this friendIds] nil)
       (onFavorite [this source target favoritedStatus] nil
+        (println "[Fav] <" (-> favoritedStatus .getId) \>)
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [238 164 19]}
                                         :fade 255/600 :width 200 :height 150 :font-size 9
                                         :body (twitter-body favoritedStatus source target :fav)}))))
@@ -92,15 +93,77 @@
       (subs s start end)
       (subs s start))))
 
+(def ^:private help-text
+  "
+Hyacinth Macaw: Twitter Client for Budgerigar Bulletin
+v0.2.0
+
+commands  |description
+----------+-------------------------
+eval &x   |evaluate &x as Clojure
+tw &x     |tweet &x
+evtw &x   |eval &x and tweet
+rep x &y  |reply &y to x (tweet id)
+evrep x &y|eval &y and reply to x
+fav x     |like x
+rt x      |retweet x (tweet id)
+favrt x   |fav x;rt x
+show x    |show the tweet x
+query x &y|search tweets from word x
+          |opts:
+          |  count n
+          |  lang s
+          |  since YYYY-MM-DD
+          |  until YYYY-MM-DD
+          |  sinceid n
+help      |show this text
+version   |show this version
+
+")
+
+(def ^:private version-text
+  "
+Hyacinth Macaw - v0.2.0
+Twitter4j - v4.0.4
+clojure - v1.8.0
+
+")
+
+(defn reply-tweet [t id msg]
+  (.updateStatus t (-> msg StatusUpdate. (.inReplyToStatusId id))))
+
+(defn- do-if-contains [mp & opts]
+  (doall (map #(if (contains? mp (first %)) ((second %) ((first %) mp))) (partition 2 opts))))
+
+(defn do-query [t word opts-map]
+  (let [q (Query. word)]
+    (do-if-contains opts-map
+      :count #(.setCount q (Integer/parseInt %))
+      :lang #(.setLang q %)
+      :since #(.setSince q %)
+      :sinceid #(.setSinceId q (Long/parseLong %))
+      :until #(.setUntil q %))
+    (-> t (.search q) .getTweets vec)))
+
+(defn- seq-to-hashmap [coll]
+  (->> coll (partition 2) (map #(vector (keyword (first %)) (second %))) flatten (apply hash-map)))
+
 (defn command-twitter-action [t]
   (loop [line (-> (read-line) (str/split #";\s*"))]
     (let [commands (-> (first line) (str/split #"\s"))]
       (case (first commands)
-        "tw" (.updateStatus t (->> (rest commands) (str/join \space)))
-        "fav" (.createFavorite t (Long/parseLong (second commands)))
-        "rt" (.retweetStatus t (Long/parseLong (second commands)))
-        "favrt" (let [id (Long/parseLong (second commands))] (.createFavorite t id) (.retweetStatus t id))
-        "show" (-> (.showStatus t (Long/parseLong (second commands))) .getText (#(println "[show]" %)))
+        "eval" (->> commands rest (str/join \space) read-string eval str (println "[eval]"))
+        "tw" (->> commands rest (str/join \space) (.updateStatus t))
+        "evtw" (->> commands rest (str/join \space) read-string eval str (.updateStatus t))
+        "rep" (->> commands (drop 2) (str/join \space) (reply-tweet t (-> commands second Long/parseLong)))
+        "evrep" (->> commands (drop 2) (str/join \space) read-string eval str (reply-tweet t (-> commands second Long/parseLong)))
+        "fav" (->> commands second Long/parseLong (.createFavorite t))
+        "rt" (->> commands second Long/parseLong (.retweetStatus t))
+        "favrt" (let [id (->> commands second Long/parseLong)] (.createFavorite t id) (.retweetStatus t id))
+        "show" (->> commands second Long/parseLong (.showStatus t) (#(twitter-body % (.getUser %) nil :tweet)) (println "[show]"))
+        "query" (->> commands (drop 2) seq-to-hashmap (do-query t (second commands)) (map #(twitter-body % (.getUser %) nil :tweet)) (str/join \newline) (apply str) (#(println "[query]\n" % "\n[/query]")))
+        "help" (println help-text)
+        "version" (println version-text)
         nil)
       (if (empty? (rest line))
         (recur (-> (read-line) (str/split #";\s*")))

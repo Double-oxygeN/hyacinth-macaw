@@ -6,11 +6,11 @@ Hyacinth Macaw は，スミレコンゴウインコ(Anodorhynchus hyacinthinus)�
 
 ## Installation
 
-Download from http://example.com/FIXME.
+Download from https://github.com/Double-oxygeN/hyacinth-macaw.
 
 ## Usage
 
-Now Developing...
+  $ lein run
 
 ## Options
 
@@ -21,10 +21,6 @@ Now Developing...
 ### Bugs
 
 ...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
 
 ## License
 
