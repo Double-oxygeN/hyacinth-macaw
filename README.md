@@ -10,7 +10,7 @@ Download from https://github.com/Double-oxygeN/hyacinth-macaw.
 
 ## Usage
 
-  $ lein run
+    $ lein run
 
 ## Options
 
