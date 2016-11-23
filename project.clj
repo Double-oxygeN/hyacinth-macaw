@@ -1,6 +1,6 @@
-(defproject hyacinth-macaw "0.2.0-SNAPSHOT"
+(defproject hyacinth-macaw "0.2.0"
   :description "HYACINTH MACAW: Twitter Client for Budgerigar Bulletin"
-  :url "http://example.com/FIXME"
+  :url "https://github.com/Double-oxygeN/hyacinth-macaw"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
