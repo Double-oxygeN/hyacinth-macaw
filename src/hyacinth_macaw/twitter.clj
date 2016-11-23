@@ -8,7 +8,8 @@
   (:require [clojure.core.async :refer [>! chan go]]
             [clojure.data.json :as json]
             [clojure.string :as str]
-            [hyacinth-macaw.uds :as uds]))
+            [hyacinth-macaw.uds :as uds]
+            [hyacinth-macaw.conf :as conf]))
 
 (def twitter-blue [29 161 242])
 (def ^:private streaming-contents (atom []))
@@ -21,8 +22,9 @@
 
 (defn make-twitter
   []
-  (let [twitter (-> (TwitterFactory.) .getInstance)
-        stream (-> (TwitterStreamFactory.) .getInstance)
+  (let [config (-> (conf/make-conf-builder) .build)
+        twitter (-> config TwitterFactory. .getInstance)
+        stream (-> config TwitterStreamFactory. .getInstance)
         request-token (.getOAuthRequestToken twitter)]
     (print "Please login to Twitter and get the PIN code.\nPIN > ")
     (flush)
