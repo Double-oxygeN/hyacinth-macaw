@@ -11,6 +11,8 @@
             [hyacinth-macaw.uds :as uds]))
 
 (def twitter-blue [29 161 242])
+(def ^:private streaming-contents (atom []))
+(def ^:private desktop (Desktop/getDesktop))
 
 (defn- get-oauth-access-token [tw req pin]
   (if (empty? pin)
@@ -21,7 +23,6 @@
   []
   (let [twitter (-> (TwitterFactory.) .getInstance)
         stream (-> (TwitterStreamFactory.) .getInstance)
-        desktop (Desktop/getDesktop)
         request-token (.getOAuthRequestToken twitter)]
     (print "Please login to Twitter and get the PIN code.\nPIN > ")
     (flush)
@@ -43,7 +44,7 @@
                   (-> status .getText) \newline
                   \< (-> status .getId) \> \newline
                   (.format format (-> status .getCreatedAt)))
-      :fav (str (-> from .getScreenName) \→ (-> to .getScreenName) \newline
+      :from-to (str (-> from .getScreenName) \→ (-> to .getScreenName) \newline
                 (-> status .getText) \newline
                 (.format format (-> status .getCreatedAt)))
       "")))
@@ -53,7 +54,7 @@
     (uds/sender-channel sender)
     (reify UserStreamListener
       (onStatus [this status]
-        (println \< (-> status .getId) \>)
+        (swap! streaming-contents conj (str \< (-> status .getId) "> @" (-> status .getUser .getScreenName)))
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame twitter-blue}
                                         :fade 255/900 :width 280 :height 210 :font-size 12
                                         :body (twitter-body status (.getUser status) nil :tweet)}))))
@@ -63,13 +64,18 @@
       (onStallWarning [this warning] this)
       (onFriendList [this friendIds] nil)
       (onFavorite [this source target favoritedStatus] nil
-        (println "[Fav] <" (-> favoritedStatus .getId) \>)
+        (swap! streaming-contents conj (str "[Fav] <" (-> favoritedStatus .getId) "> @" (-> source .getScreenName)))
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [238 164 19]}
                                         :fade 255/600 :width 200 :height 150 :font-size 9
-                                        :body (twitter-body favoritedStatus source target :fav)}))))
+                                        :body (twitter-body favoritedStatus source target :from-to)}))))
       (onUnfavorite [this source rarget favoritedStatus] nil)
       (onFavoritedRetweet [this source target favoritedRetweet] nil)
       (onRetweetedRetweet [this source target retweetedStatus] nil)
+      (onQuotedTweet [this source target quotingTweet]
+        (swap! streaming-contents conj (str "[Quote] <" (-> quotingTweet .getId) \>))
+        (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [120 244 23]}
+                                        :fade 255/750 :width 200 :height 150 :font-size 9
+                                        :body (twitter-body quotingTweet source target :from-to)}))))
       (onFollow [this source followedUser] nil)
       (onUnfollow [this source unfollowedUser] nil)
       (onDirectMessage [this directMessage] nil)
@@ -109,6 +115,7 @@ evrep x &y|eval &y and reply to x
 fav x     |like x
 rt x      |retweet x (tweet id)
 favrt x   |fav x;rt x
+fetch     |fetch stream and show
 show x    |show the tweet x
 query x &y|search tweets from word x
           |opts:
@@ -117,18 +124,17 @@ query x &y|search tweets from word x
           |  since YYYY-MM-DD
           |  until YYYY-MM-DD
           |  sinceid n
+browse x  |get URL from x and browse
 help      |show this text
 version   |show this version
-
+exit      |quit this app
 ")
 
 (def ^:private version-text
-  "
+  (str "
 Hyacinth Macaw - v0.2.0
 Twitter4j - v4.0.4
-clojure - v1.8.0
-
-")
+clojure - v" (clojure-version) \newline))
 
 (defn reply-tweet [t id msg]
   (.updateStatus t (-> msg StatusUpdate. (.inReplyToStatusId id))))
@@ -150,6 +156,8 @@ clojure - v1.8.0
   (->> coll (partition 2) (map #(vector (keyword (first %)) (second %))) flatten (apply hash-map)))
 
 (defn command-twitter-action [t]
+  (print "hyacinth macaw > ")
+  (flush)
   (loop [line (-> (read-line) (str/split #";\s*"))]
     (let [commands (-> (first line) (str/split #"\s"))]
       (try
@@ -162,13 +170,16 @@ clojure - v1.8.0
           "fav" (->> commands second Long/parseLong (.createFavorite t))
           "rt" (->> commands second Long/parseLong (.retweetStatus t))
           "favrt" (let [id (->> commands second Long/parseLong)] (.createFavorite t id) (.retweetStatus t id))
+          "fetch" (do (println "[fetch]") (->> @streaming-contents (str/join \newline) println) (reset! streaming-contents []) (println "[/fetch]"))
           "show" (->> commands second Long/parseLong (.showStatus t) (#(twitter-body % (.getUser %) nil :tweet)) (println "[show]"))
           "query" (->> commands (drop 2) seq-to-hashmap (do-query t (second commands)) (map #(twitter-body % (.getUser %) nil :tweet)) (str/join \newline) (apply str) (#(println "[query]\n" % "\n[/query]")))
+          "browse" (->> commands second Long/parseLong (.showStatus t) .getURLEntities vec (map #(->> % .getExpandedURL URI. (.browse desktop))) doall)
           "help" (println help-text)
           "version" (println version-text)
-          nil)
-        (catch Exception e (println "caught exception:" (.getMessage e)))
-        (finally (Thread/sleep 3000)))
+          "exit" (do (println "cu!") (System/exit 0))
+          "" nil
+          (println (first commands) "- command not found"))
+        (catch Exception e (do (println "caught exception:" (.getMessage e)) (Thread/sleep 3000))))
       (if (empty? (rest line))
-        (recur (-> (read-line) (str/split #";\s*")))
+        (do (print "hyacinth macaw > ") (flush) (recur (-> (read-line) (str/split #";\s*"))))
         (recur (rest line))))))
