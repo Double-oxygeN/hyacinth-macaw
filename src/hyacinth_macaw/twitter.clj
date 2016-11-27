@@ -109,6 +109,7 @@ rt x      |retweet x (tweet id)
 favrt x   |fav x;rt x
 fetch     |fetch stream and show
 show x    |show the tweet x
+user @foo |show the tweets of user @foo
 query x &y|search tweets from word x
           |opts:
           |  count n
@@ -140,28 +141,36 @@ clojure - v" (clojure-version) \newline))
         :until #(.setUntil q %))
       (-> t (.search q) .getTweets vec))))
 
+(defn console-color [s str-color bg-color]
+  (let [esc "\033[" color-map (zipmap [:black :red :green :yellow :blue :magenta :cyan :white] (range 8))]
+    (str esc \9 (get color-map str-color 9) ";4" (get color-map bg-color 9) \m s esc "0m")))
+
 (defn command-twitter-action [t]
   (print "hyacinth macaw > ")
   (flush)
   (loop [line (-> (read-line) (str/split #";\s*"))]
     (let [commands (-> (first line) (str/split #"\s"))]
       (letfn [(seq-to-hashmap [coll] (->> coll (partition 2) (map #(vector (keyword (first %)) (second %))) flatten (apply hash-map)))
-              (reply-tweet [t id msg] (.updateStatus t (-> msg StatusUpdate. (.inReplyToStatusId id))))]
+              (reply-tweet [t id msg] (.updateStatus t (-> msg StatusUpdate. (.inReplyToStatusId id))))
+              (eval-str [s] (-> s read-string eval str))
+              (get-second-id [comds] (-> comds second Long/parseLong))
+              (kakoi [tag s] (str \[ tag \] \newline s \newline \[ \/ tag \]))]
         (try
           (case (first commands)
-            "eval" (->> commands rest (str/join \space) read-string eval str (println "[eval]"))
+            "eval" (->> commands rest (str/join \space) eval-str (str "[eval]") (#(console-color % :white :blue)) println)
             "tw" (->> commands rest (str/join \space) (.updateStatus t))
-            "evtw" (->> commands rest (str/join \space) read-string eval str (.updateStatus t))
+            "evtw" (->> commands rest (str/join \space) eval-str (.updateStatus t))
             "rep" (->> commands (drop 2) (str/join \space) (reply-tweet t (-> commands second Long/parseLong)))
-            "evrep" (->> commands (drop 2) (str/join \space) read-string eval str (reply-tweet t (-> commands second Long/parseLong)))
-            "fav" (->> commands second Long/parseLong (.createFavorite t))
-            "rt" (->> commands second Long/parseLong (.retweetStatus t))
-            "favrt" (let [id (->> commands second Long/parseLong)] (.createFavorite t id) (.retweetStatus t id))
-            "fetch" (do (println "[fetch]") (->> @streaming-contents (str/join \newline) println) (reset! streaming-contents []) (println "[/fetch]"))
-            "show" (->> commands second Long/parseLong (.showStatus t) (#(twitter-body % (.getUser %) nil :tweet)) (println "[show]"))
-            "query" (->> commands (drop 2) seq-to-hashmap (do-query t (second commands)) (map #(twitter-body % (.getUser %) nil :tweet)) (str/join \newline) (apply str) (#(println "[query]\n" % "\n[/query]")))
-            "browse" (->> commands second Long/parseLong (.showStatus t) .getURLEntities vec (map #(->> % .getExpandedURL URI. (.browse desktop))) doall)
-            "pict" (->> commands second Long/parseLong (.showStatus t) .getExtendedMediaEntities vec (map #(->> % .getMediaURLHttps URI. (.browse desktop))) doall)
+            "evrep" (->> commands (drop 2) (str/join \space) eval-str (reply-tweet t (-> commands second Long/parseLong)))
+            "fav" (->> commands get-second-id (.createFavorite t))
+            "rt" (->> commands get-second-id (.retweetStatus t))
+            "favrt" (let [id (->> commands get-second-id)] (.createFavorite t id) (.retweetStatus t id))
+            "fetch" (do (->> @streaming-contents (str/join \newline) (kakoi "fetch") (#(console-color % :green :black)) println) (reset! streaming-contents []))
+            "show" (->> commands get-second-id (.showStatus t) (#(twitter-body % (.getUser %) nil :tweet)) (str "[show]") (#(console-color % :yellow :black)) println)
+            "user" (->> commands second (.showUser t) .getId (.getUserTimeline t) vec (map #(twitter-body % (.getUser %) nil :tweet)) (str/join \newline) (apply str) (kakoi "user") (#(console-color % :cyan :black)) println)
+            "query" (->> commands (drop 2) seq-to-hashmap (do-query t (second commands)) (map #(twitter-body % (.getUser %) nil :tweet)) (str/join \newline) (apply str) (kakoi "query") (#(console-color % :magenta :black)) println)
+            "browse" (->> commands get-second-id (.showStatus t) .getURLEntities vec (map #(->> % .getExpandedURL URI. (.browse desktop))) doall)
+            "pict" (->> commands get-second-id (.showStatus t) .getExtendedMediaEntities vec (map #(->> % .getMediaURLHttps URI. (.browse desktop))) doall)
             "help" (println help-text)
             "version" (println version-text)
             "exit" (do (println "cu!") (System/exit 0))
