@@ -8,7 +8,6 @@
                  [org.clojure/data.json "0.2.6"]
                  [org.twitter4j/twitter4j-core "4.0.4"]
                  [org.twitter4j/twitter4j-stream "4.0.4"]
-                 [org.twitter4j/twitter4j-async "4.0.4"]
                  [com.kohlschutter.junixsocket/junixsocket-native-common "2.0.4"]]
   :main ^:skip-aot hyacinth-macaw.core
   :target-path "target/%s"

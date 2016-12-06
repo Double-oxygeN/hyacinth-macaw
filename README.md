@@ -10,17 +10,11 @@ Download from https://github.com/Double-oxygeN/hyacinth-macaw.
 
 ## Usage
 
-    $ lein run
-
-## Options
-
-## Examples
-
-...
+    $ java -jar hyacinth-macaw-0.2.0-standalone.jar
 
 ### Bugs
 
-...
+急にターミナルが落ちることがあります。
 
 ## License
 
