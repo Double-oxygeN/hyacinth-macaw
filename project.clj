@@ -1,4 +1,4 @@
-(defproject hyacinth-macaw "0.2.0"
+(defproject hyacinth-macaw "0.2.1"
   :description "HYACINTH MACAW: Twitter Client for Budgerigar Bulletin"
   :url "https://github.com/Double-oxygeN/hyacinth-macaw"
   :license {:name "Eclipse Public License"

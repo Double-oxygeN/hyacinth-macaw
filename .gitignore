@@ -9,3 +9,4 @@ pom.xml.asc
 .hgignore
 .hg/
 /src/hyacinth_macaw/conf.clj
+/demo
