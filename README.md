@@ -10,7 +10,7 @@ Download from https://github.com/Double-oxygeN/hyacinth-macaw.
 
 ## Usage
 
-    $ java -jar hyacinth-macaw-0.2.1-standalone.jar
+    $ java -jar hyacinth-macaw-0.2.2-standalone.jar
 
 ### Bugs
 

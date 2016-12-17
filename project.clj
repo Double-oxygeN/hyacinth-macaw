@@ -1,4 +1,4 @@
-(defproject hyacinth-macaw "0.2.1"
+(defproject hyacinth-macaw "0.2.2"
   :description "HYACINTH MACAW: Twitter Client for Budgerigar Bulletin"
   :url "https://github.com/Double-oxygeN/hyacinth-macaw"
   :license {:name "Eclipse Public License"
@@ -8,7 +8,8 @@
                  [org.clojure/data.json "0.2.6"]
                  [org.twitter4j/twitter4j-core "4.0.4"]
                  [org.twitter4j/twitter4j-stream "4.0.4"]
-                 [com.kohlschutter.junixsocket/junixsocket-native-common "2.0.4"]]
+                 [com.kohlschutter.junixsocket/junixsocket-native-common "2.0.4"]
+                 [jline/jline "2.14.2"]]
   :main ^:skip-aot hyacinth-macaw.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

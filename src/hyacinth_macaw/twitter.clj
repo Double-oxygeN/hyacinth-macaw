@@ -1,13 +1,14 @@
 (ns hyacinth-macaw.twitter
   (:import (java.awt Desktop)
-           (java.net URI)
            (java.util Locale)
            (java.lang Exception)
            (java.text SimpleDateFormat)
-           (twitter4j Query StatusUpdate TwitterFactory TwitterStreamFactory TwitterException UserStreamListener))
+           (twitter4j Query StatusUpdate TwitterFactory TwitterStreamFactory TwitterException UserStreamListener)
+           (jline.console ConsoleReader UserInterruptException))
   (:require [clojure.core.async :refer [>! chan go]]
             [clojure.data.json :as json]
             [clojure.string :as str]
+            [clojure.java.browse :as br]
             [hyacinth-macaw.uds :as uds]
             [hyacinth-macaw.conf :as conf]))
 
@@ -24,7 +25,7 @@
             (set-oauth-access-token [token tw] (.setOAuthAccessToken tw token))]
       (print "Please login to Twitter and get the PIN code.\nPIN > ")
       (flush)
-      (->> (.getAuthorizationURL request-token) URI. (.browse desktop))
+      (->> (.getAuthorizationURL request-token) br/browse-url)
       (let [line (read-line)]
         (try
           (doto (get-oauth-access-token twitter request-token line)
@@ -95,7 +96,7 @@
 (def ^:private help-text
   "
 Hyacinth Macaw: Twitter Client for Budgerigar Bulletin
-v0.2.0
+v0.2.2
 
 commands  |description
 ----------+-----------------------------
@@ -129,7 +130,7 @@ exit      |quit this app
 
 (def ^:private version-text
   (str "
-Hyacinth Macaw - v0.2.1
+Hyacinth Macaw - v0.2.2
 Twitter4j - v4.0.4
 clojure - v" (clojure-version) \newline))
 
@@ -149,10 +150,10 @@ clojure - v" (clojure-version) \newline))
     (str esc \9 (get color-map str-color 9) ";4" (get color-map bg-color 9) \m s esc "0m")))
 
 (defn command-twitter-action [t]
-  (print "hyacinth macaw > ")
-  (flush)
-  (let [tag-str (atom "")]
-    (loop [line (-> (read-line) (str/split #";\s*"))]
+  (let [tag-str (atom "") console (ConsoleReader.)
+        _ (.setPrompt console "hyacinth macaw > ")
+        _ (.setHandleUserInterrupt console true)]
+    (loop [line (try (-> console .readLine (str/split #";\s*")) (catch UserInterruptException e [""]))]
       (let [commands (-> (first line) (str/split #"\s"))]
         (letfn [(seq-to-hashmap [coll] (->> coll (partition 2) (map #(vector (keyword (first %)) (second %))) flatten (apply hash-map)))
                 (reply-tweet [t id msg] (.updateStatus t (-> msg StatusUpdate. (.inReplyToStatusId id))))
@@ -173,8 +174,8 @@ clojure - v" (clojure-version) \newline))
               "show" (->> commands get-second-id (.showStatus t) (#(twitter-body % (.getUser %) nil :tweet)) (str "[show]") (#(console-color % :yellow :black)) println)
               "user" (->> commands second (.showUser t) .getId (.getUserTimeline t) vec (map #(twitter-body % (.getUser %) nil :tweet)) (str/join \newline) (apply str) (kakoi "user") (#(console-color % :cyan :black)) println)
               "query" (->> commands (drop 2) seq-to-hashmap (do-query t (second commands)) (map #(twitter-body % (.getUser %) nil :tweet)) (str/join \newline) (apply str) (kakoi "query") (#(console-color % :magenta :black)) println)
-              "browse" (->> commands get-second-id (.showStatus t) .getURLEntities vec (map #(->> % .getExpandedURL URI. (.browse desktop))) doall)
-              "pict" (->> commands get-second-id (.showStatus t) .getExtendedMediaEntities vec (map #(->> % .getMediaURLHttps URI. (.browse desktop))) doall)
+              "browse" (->> commands get-second-id (.showStatus t) .getURLEntities vec (map #(->> % .getExpandedURL br/browse-url)) doall)
+              "pict" (->> commands get-second-id (.showStatus t) .getExtendedMediaEntities vec (map #(->> % .getMediaURLHttps br/browse-url)) doall)
               "tag" (->> commands second (str \newline \#) (reset! tag-str))
               "tag?" (-> @tag-str (#(str "[tag?]" %)) (console-color :white :black) println)
               "untag" (reset! tag-str "")
@@ -185,5 +186,5 @@ clojure - v" (clojure-version) \newline))
               (println (first commands) "- command not found"))
             (catch Exception e (do (println "caught exception:" (.getMessage e)) (Thread/sleep 3000))))
           (if (empty? (rest line))
-            (do (print "hyacinth macaw > ") (flush) (recur (-> (read-line) (str/split #";\s*"))))
+            (recur (try (-> console .readLine (str/split #";\s*")) (catch UserInterruptException e [""])))
             (recur (rest line))))))))
