@@ -10,3 +10,4 @@ pom.xml.asc
 .hg/
 /src/hyacinth_macaw/conf.clj
 /demo
+streaming.txt
