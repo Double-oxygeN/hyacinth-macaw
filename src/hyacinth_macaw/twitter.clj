@@ -10,7 +10,8 @@
             [clojure.string :as str]
             [clojure.java.browse :as br]
             [hyacinth-macaw.uds :as uds]
-            [hyacinth-macaw.conf :as conf]))
+            [hyacinth-macaw.conf :as conf]
+            [hyacinth-macaw.markov.markov :as mk]))
 
 (def ^:private streaming-contents (atom []))
 (def ^:private desktop (Desktop/getDesktop))
@@ -54,6 +55,13 @@
     (reify UserStreamListener
       (onStatus [this status]
         (swap! streaming-contents conj (str \< (-> status .getId) "> @" (-> status .getUser .getScreenName)))
+        (spit "streaming.txt"
+          (-> status .getText
+            (str/replace #"https://t.co/[a-zA-Z0-9]*" "") ; 短縮URLの除去
+            (str/replace #"@[a-zA-Z0-9_]+" "")            ; リプライの除去
+            (str/replace #"\s+" "")                       ; 空白の除去
+            (str \newline))
+          :append true)
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [29 161 242]}
                                         :fade 255/900 :width 280 :height 210 :font-size 12
                                         :body (twitter-body status (.getUser status) nil :tweet)}))))
@@ -67,7 +75,7 @@
         (go (>! sender (json/write-str {:color {:body [240 240 240] :frame [242 161 29]}
                                         :fade 255/600 :width 200 :height 150 :font-size 9
                                         :body (twitter-body favoritedStatus source target :from-to)}))))
-      (onUnfavorite [this source rarget favoritedStatus] nil)
+      (onUnfavorite [this source target favoritedStatus] nil)
       (onFavoritedRetweet [this source target favoritedRetweet] nil)
       (onRetweetedRetweet [this source target retweetedStatus] nil)
       (onQuotedTweet [this source target quotingTweet]
@@ -96,7 +104,7 @@
 (def ^:private help-text
   "
 Hyacinth Macaw: Twitter Client for Budgerigar Bulletin
-v0.2.2
+v0.2.3
 
 commands  |description
 ----------+-----------------------------
@@ -130,7 +138,7 @@ exit      |quit this app
 
 (def ^:private version-text
   (str "
-Hyacinth Macaw - v0.2.2
+Hyacinth Macaw - v0.2.3
 Twitter4j - v4.0.4
 clojure - v" (clojure-version) \newline))
 
@@ -181,6 +189,7 @@ clojure - v" (clojure-version) \newline))
               "untag" (reset! tag-str "")
               "help" (println help-text)
               "version" (println version-text)
+              "markov" (->> "streaming.txt" (mk/random-text 2 30) (take-while #(not= % \newline)) (apply str) (#(console-color % :black :white)) println)
               "exit" (do (println "cu!") (System/exit 0))
               "" nil
               (println (first commands) "- command not found"))
